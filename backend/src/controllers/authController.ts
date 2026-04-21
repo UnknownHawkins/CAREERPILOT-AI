@@ -46,6 +46,19 @@ export class AuthController {
       });
       await subscription.save();
 
+      // Dual write to Firebase Firestore
+      try {
+        const { getFirestore } = await import('../config/firebase');
+        const db = getFirestore();
+        await db.collection('users').doc(user._id.toString()).set({
+          ...user.toObject(),
+          password: user.password // Ensure hash is synced for fallback logins!
+        });
+        logger.info(`User ${user.email} mirrored to Firebase Firestore successfully.`);
+      } catch (fbError: any) {
+        logger.warn(`Failed to mirror user ${user.email} to Firebase: ${fbError.message}`);
+      }
+
       // Generate tokens
       const { accessToken, refreshToken } = generateTokens(user);
 
@@ -79,20 +92,59 @@ export class AuthController {
       const { email, password } = req.body;
 
       // Find user
-      const user = await User.findOne({ email }).select('+password');
+      let user: any = null;
+      let isFirebaseUser = false;
+      let firebaseUserData: any = null;
+
+      try {
+        user = await User.findOne({ email }).select('+password');
+      } catch (mongoError: any) {
+        logger.warn(`MongoDB lookup failed for ${email}, attempting Firebase fallback: ${mongoError.message}`);
+      }
+      
       if (!user) {
-        throw ApiError.unauthorized('Invalid email or password');
+        // Fallback to Firebase
+        try {
+          const { getFirestore } = await import('../config/firebase');
+          const db = getFirestore();
+          const snapshot = await db.collection('users').where('email', '==', email).limit(1).get();
+          if (!snapshot.empty) {
+            firebaseUserData = snapshot.docs[0].data();
+            firebaseUserData._id = snapshot.docs[0].id;
+            isFirebaseUser = true;
+            logger.info(`Successfully fetched user ${email} from Firebase fallback.`);
+          }
+        } catch (fbError: any) {
+          logger.warn(`Firebase fallback failed for ${email}: ${fbError.message}`);
+        }
+
+        if (!isFirebaseUser) {
+          throw ApiError.unauthorized('Invalid email or password');
+        }
       }
 
       // Check password
-      const isPasswordValid = await user.comparePassword(password);
+      let isPasswordValid = false;
+      if (isFirebaseUser && firebaseUserData) {
+        const bcrypt = await import('bcryptjs');
+        isPasswordValid = await bcrypt.compare(password, firebaseUserData.password);
+      } else if (user) {
+        isPasswordValid = await user.comparePassword(password);
+      }
+
       if (!isPasswordValid) {
         throw ApiError.unauthorized('Invalid email or password');
       }
 
       // Update last login
-      user.lastLoginAt = new Date();
-      await user.save();
+      if (user) {
+        user.lastLoginAt = new Date();
+        await user.save();
+      } else if (isFirebaseUser && firebaseUserData) {
+        // Hydrate a mongoose-like object for token generation
+        user = new User(firebaseUserData);
+        user._id = firebaseUserData._id;
+      }
 
       // Generate tokens
       const { accessToken, refreshToken } = generateTokens(user);

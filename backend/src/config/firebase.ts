@@ -7,11 +7,28 @@ let firebaseApp: admin.app.App | undefined;
 export const initializeFirebase = (): void => {
   try {
     if (!admin.apps.length) {
+      let credential;
+
+      if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+        try {
+          credential = admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT));
+        } catch (e) {
+          logger.error('Failed to parse FIREBASE_SERVICE_ACCOUNT env var. Falling back to file.');
+        }
+      }
+
+      if (!credential) {
+        try {
+          credential = admin.credential.cert(serviceAccount as admin.ServiceAccount);
+        } catch (e) {
+          logger.error('Failed to load Firebase service account from file. Firebase features will be limited.');
+          return;
+        }
+      }
+
       firebaseApp = admin.initializeApp({
-        credential: admin.credential.cert(
-          serviceAccount as admin.ServiceAccount
-        ),
-        storageBucket: 'mini-project-2nd.appspot.com',
+        credential,
+        storageBucket: process.env.FIREBASE_STORAGE_BUCKET || 'mini-project-2nd.appspot.com',
       });
 
       logger.info('🔥 Firebase initialized successfully');
@@ -20,7 +37,7 @@ export const initializeFirebase = (): void => {
     }
   } catch (error) {
     logger.error('Firebase initialization error:', error);
-    throw error;
+    // Don't throw to allow app to start without Firebase in dev
   }
 };
 
@@ -36,6 +53,13 @@ export const getFirebaseAuth = (): admin.auth.Auth => {
     initializeFirebase();
   }
   return admin.auth();
+};
+
+export const getFirestore = (): admin.firestore.Firestore => {
+  if (!firebaseApp) {
+    initializeFirebase();
+  }
+  return admin.firestore();
 };
 
 export const uploadFileToFirebase = async (

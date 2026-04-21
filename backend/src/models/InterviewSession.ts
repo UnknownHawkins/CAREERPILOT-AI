@@ -42,6 +42,9 @@ export interface IInterviewSession extends Document {
   totalDuration?: number; // in seconds
   createdAt: Date;
   updatedAt: Date;
+  // Virtuals
+  answeredQuestionsCount?: number;
+  progressPercentage?: number;
 }
 
 const InterviewQuestionSchema = new Schema<IInterviewQuestion>({
@@ -148,7 +151,8 @@ InterviewSessionSchema.virtual('answeredQuestionsCount').get(function () {
 // Virtual for progress percentage
 InterviewSessionSchema.virtual('progressPercentage').get(function () {
   if (this.questions.length === 0) return 0;
-  return Math.round((this.answeredQuestionsCount / this.questions.length) * 100);
+  const answered = this.questions.filter((q: IInterviewQuestion) => q.userAnswer).length;
+  return Math.round((answered / this.questions.length) * 100);
 });
 
 export const InterviewSession = mongoose.model<IInterviewSession>('InterviewSession', InterviewSessionSchema);

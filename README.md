@@ -1,203 +1,106 @@
-# CareerPilot AI
+<div align="center">
+  <img src="https://via.placeholder.com/150/6366F1/FFFFFF?text=CP" width="100" height="100" alt="CareerPilot AI Logo">
+  <h1>CareerPilot AI 🚀</h1>
+  <p><strong>Advanced AI-Powered Career Trajectory & Interview Simulation Engine</strong></p>
 
-A comprehensive AI-powered career platform built with Next.js, Node.js, Express, MongoDB, and Google Gemini AI.
+  [![Next.js](https://img.shields.io/badge/Next.js-14-black.svg?style=flat&logo=next.js)](#)
+  [![Node.js](https://img.shields.io/badge/Node.js-Express-green.svg?style=flat&logo=nodedotjs)](#)
+  [![Gemini AI](https://img.shields.io/badge/Google-Gemini_AI-4285F4.svg?style=flat&logo=google)](#)
+  [![MongoDB](https://img.shields.io/badge/MongoDB-Mongoose-47A248.svg?style=flat&logo=mongodb)](#)
+  [![TypeScript](https://img.shields.io/badge/TypeScript-Strict-3178C6.svg?style=flat&logo=typescript)](#)
+</div>
 
-## Features
+---
 
-- **Resume Analyzer**: Upload PDF/DOCX files and get ATS scores with detailed feedback
-- **AI Mock Interviews**: Practice with AI-generated questions and receive feedback
-- **LinkedIn Profile Review**: Optimize your profile for better visibility
-- **Job Matching System**: Compare your skills with job roles and get match percentages
-- **Skill Gap Detection**: Generate personalized career roadmaps with learning paths
+## ⚡ Overview
 
-## Tech Stack
+CareerPilot AI is an enterprise-grade, highly-extensible recruitment platform designed to mentor software engineers and job seekers computationally. By harnessing the determinism of Google Gemini AI and a scalable React/Express client-server paradigm, it automates ATS parsing, conducts stateful AI interviews, and orchestrates long-term career roadmaps.
 
-### Frontend
-- Next.js 14 (App Router)
-- TypeScript
-- Tailwind CSS
-- Framer Motion
-- Zustand (State Management)
-- React Query
-- shadcn/ui components
+> [!NOTE]
+> For a highly exhaustive architectural breakdown, logic mapping, and systemic design patterns, please refer to the deep-dive [About Project Documentation module](about_project.md).
 
-### Backend
-- Node.js
-- Express.js
-- TypeScript
-- MongoDB (Mongoose)
-- JWT Authentication
-- Google Gemini AI API
-- Firebase Storage
-- Stripe/Razorpay Payments
+## 🚀 Advanced Capabilities
 
-## Project Structure
+- **[ADVANCED] ATS Resume Deconstruction**: Parses unstructured binary PDFs via Node streams, forces strict JSON schema constraints into Gemini, and maps structural gaps back to industry thresholds.
+- **[ADVANCED] Stateful Iterative Interviews**: Generates isolated technical behavioral tests dynamically on React loops. Every prompt response is individually mapped, validated, and natively scored securely via backend endpoints.
+- **[ADVANCED] Zero-Friction Polymorphic Monetization**: Fuses Stripe checkout sessions mathematically with an innovative *Atomic Ad-Viewing Engine*. Users seamlessly unlock features via Webhooks OR by executing 15-second virtualized SaaS ads mapping strictly to a localized MongoDB state index.
+- **[ADVANCED] Immutable JWT Interception**: Custom Axios implementations instantly trap `401 Unauthorized` hits, firing invisible rotational `/refresh` requests, rearming the JWT tokens transparently to preserve frontend UX logic.
 
-```
+---
+
+## 📂 Project Architecture & Folder Structure
+
+CareerPilot leverages a decoupled monolithic setup, maximizing independence across the React frontend and Node backend.
+
+```text
 careerpilot-ai/
-├── backend/
+├── backend/                             # Express Server Architecture
 │   ├── src/
-│   │   ├── config/         # Database, Firebase, Gemini, Stripe config
-│   │   ├── controllers/    # Route controllers
-│   │   ├── middleware/     # Auth, rate limiting, error handling
-│   │   ├── models/         # Mongoose models
-│   │   ├── routes/         # API routes
-│   │   ├── services/       # Business logic & AI integration
-│   │   ├── utils/          # Utilities & validators
-│   │   └── server.ts       # Entry point
-│   ├── package.json
-│   └── tsconfig.json
-├── frontend/
-│   ├── app/                # Next.js app router pages
-│   ├── components/         # React components
-│   │   ├── dashboard/      # Dashboard components
-│   │   ├── layout/         # Layout components
-│   │   └── ui/             # UI components
-│   ├── hooks/              # Custom React hooks
-│   ├── lib/                # Utilities & API client
-│   ├── store/              # Zustand stores
-│   ├── types/              # TypeScript types
-│   └── package.json
-└── README.md
+│   │   ├── config/                      # Webhooks, Gemini API, DB integrations
+│   │   ├── controllers/                 # Stateless request mapping
+│   │   ├── middleware/                  # Auth Guards & Event Resolvers
+│   │   ├── models/                      # Deep Mongoose Schema Models
+│   │   ├── routes/                      # RESTful Route handlers
+│   │   ├── services/                    # Heavy business logic & GenAi functions
+│   │   └── server.ts                    # Application bootloader
+│   └── .env                             # Backend SECRETS
+└── frontend/                            # Next.js 14 App Router
+    ├── app/
+    │   ├── (auth)/                      # Grouped public routing scopes
+    │   ├── dashboard/                   # Unified state-locked hubs
+    │   ├── ads/                         # Advanced Token Monetization Component
+    │   └── ...                          # Independent capability directories
+    ├── components/
+    │   └── ui/                          # Granular, re-usable Radix primitives
+    ├── hooks/                           # Custom React event synchronizers
+    ├── store/                           # Zustand persistent tree managers
+    ├── types/                           # Universal global Interfaces
+    └── .env.local                       # Frontend SECRETS
 ```
 
-## Getting Started
+---
 
-### Prerequisites
-- Node.js 18+
-- MongoDB
-- Firebase project
-- Google Gemini API key
-- Stripe account (optional)
+## 🛠️ Quick Start & Installation
 
-### Backend Setup
+### 1. Prerequisites
+- **Node.js**: `v18.0.0` or greater.
+- **MongoDB**: Active connection string.
+- **API Keys**: Google Gemini (`AI Studio`), Stripe (optional for recurring billing workflows), Firebase (for resume blob processing).
 
-1. Navigate to the backend directory:
+### 2. Environment Configuration
+Duplicate the environment placeholders into functional local configurations.
+
 ```bash
+# Backend Setup
 cd backend
-```
-
-2. Install dependencies:
-```bash
-npm install
-```
-
-3. Create a `.env` file based on `.env.example`:
-```bash
 cp .env.example .env
 ```
+Populate `.env` with `MONGODB_URI`, `JWT_SECRET`, `GEMINI_API_KEY`, and `STRIPE_SECRET_KEY`.
 
-4. Update the `.env` file with your credentials:
-```env
-PORT=5000
-MONGODB_URI=mongodb://localhost:27017/careerpilot_ai
-JWT_SECRET=your_jwt_secret
-GEMINI_API_KEY=your_gemini_api_key
-FIREBASE_PROJECT_ID=your_project_id
-FIREBASE_PRIVATE_KEY=your_private_key
-FIREBASE_CLIENT_EMAIL=your_client_email
-FIREBASE_STORAGE_BUCKET=your_bucket
-STRIPE_SECRET_KEY=your_stripe_key
-```
-
-5. Start the development server:
 ```bash
-npm run dev
-```
-
-### Frontend Setup
-
-1. Navigate to the frontend directory:
-```bash
-cd frontend
-```
-
-2. Install dependencies:
-```bash
-npm install
-```
-
-3. Create a `.env.local` file:
-```bash
+# Frontend Setup
+cd ../frontend
 cp .env.example .env.local
 ```
+Expose the backend port via `NEXT_PUBLIC_API_URL`.
 
-4. Update the environment variables:
-```env
-NEXT_PUBLIC_API_URL=http://localhost:5000/api/v1
-```
+### 3. Execution Engine
+Instanciate the decoupled environment locally via standard installation commands. Run in two discrete processes:
 
-5. Start the development server:
 ```bash
+# Start Backend Listener on Port 5000
+cd backend
+npm install
+npm run dev
+
+# Mount Frontend on Port 3000
+cd frontend
+npm install
 npm run dev
 ```
 
-## API Endpoints
+---
 
-### Authentication
-- `POST /api/v1/auth/register` - Register new user
-- `POST /api/v1/auth/login` - Login user
-- `POST /api/v1/auth/refresh-token` - Refresh access token
-- `GET /api/v1/auth/me` - Get current user
-- `PUT /api/v1/auth/profile` - Update profile
+## 🛡️ Licensing & Deployment
 
-### Resume
-- `POST /api/v1/resume/upload` - Upload and analyze resume
-- `GET /api/v1/resume` - Get user's analyses
-- `GET /api/v1/resume/:id` - Get analysis by ID
-- `POST /api/v1/resume/:id/reanalyze` - Reanalyze resume
-
-### Interview
-- `POST /api/v1/interview` - Create interview session
-- `GET /api/v1/interview` - Get user's sessions
-- `POST /api/v1/interview/:id/answer` - Submit answer
-- `POST /api/v1/interview/:id/complete` - Complete session
-
-### LinkedIn
-- `POST /api/v1/linkedin/analyze` - Analyze LinkedIn profile
-- `POST /api/v1/linkedin/suggestions/headline` - Generate headline suggestions
-
-### Roadmap
-- `POST /api/v1/roadmap` - Create career roadmap
-- `GET /api/v1/roadmap` - Get user's roadmaps
-- `POST /api/v1/roadmap/:id/milestones/:milestoneId/complete` - Complete milestone
-
-### Job Matches
-- `POST /api/v1/jobs` - Create job match
-- `GET /api/v1/jobs` - Get user's job matches
-- `PUT /api/v1/jobs/:id/status` - Update application status
-
-### Subscription
-- `GET /api/v1/subscription/plans` - Get pricing plans
-- `POST /api/v1/subscription` - Create subscription
-- `POST /api/v1/subscription/cancel` - Cancel subscription
-
-## User Roles
-
-### Free Tier
-- 3 resume analyses per month
-- 1 mock interview session (3 questions)
-- Basic LinkedIn review
-- 1 active career roadmap
-
-### Pro Tier
-- Unlimited resume analyses
-- Unlimited mock interviews
-- Advanced LinkedIn optimization
-- 3 active career roadmaps
-- Weekly job recommendations
-- Priority support
-
-## Security Features
-
-- JWT authentication with refresh tokens
-- Role-based access control
-- Rate limiting
-- Input validation
-- Helmet security headers
-- CORS configuration
-- Password hashing with bcrypt
-
-## License
-
-MIT License
+Licensed under the MIT License. Enterprise-grade execution logic may require modification of internal MongoDB collections prior to horizontal scaling.

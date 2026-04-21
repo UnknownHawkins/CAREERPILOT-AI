@@ -59,6 +59,24 @@ export const imageUpload = multer({
   },
 });
 
+// Audio upload configuration for transcription
+export const audioUpload = multer({
+  storage,
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['.webm', '.wav', '.mp3', '.m4a', '.ogg'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowedTypes.includes(ext) || file.mimetype.startsWith('audio/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid audio type. Only WebM, WAV, MP3, M4A, and OGG are allowed.'));
+    }
+  },
+  limits: {
+    fileSize: 25 * 1024 * 1024, // 25MB max for Whisper
+    files: 1,
+  },
+});
+
 // Multiple files upload configuration
 export const multipleUpload = multer({
   storage,

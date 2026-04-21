@@ -9,6 +9,7 @@ export const handleValidationErrors = (
 ): void => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
+    console.log('Validation Errors:', errors.array());
     errorResponse(res, 'Validation failed', 400, errors.array());
     return;
   }
@@ -51,12 +52,12 @@ export const loginValidator = [
 // Resume validators
 export const resumeUploadValidator = [
   body('targetRole')
-    .optional()
+    .optional({ checkFalsy: true })
     .trim()
     .isLength({ min: 2 })
     .withMessage('Target role must be at least 2 characters'),
   body('industry')
-    .optional()
+    .optional({ checkFalsy: true })
     .trim(),
   handleValidationErrors,
 ];

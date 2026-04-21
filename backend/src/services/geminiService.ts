@@ -16,12 +16,19 @@ export interface ResumeAnalysisResult {
   };
   keywordOptimization: KeywordAnalysis;
   formatting: FormattingAnalysis;
+  improvementSuggestions: string[];
+  jobSuggestions: {
+    title: string;
+    company: string;
+    reasoning: string;
+    matchScore: number;
+  }[];
+  matchingRoles: string[];
   skillGapAnalysis: {
     currentSkills: string[];
     recommendedSkills: string[];
     prioritySkills: string[];
   };
-  improvementSuggestions: string[];
 }
 
 interface SectionAnalysis {
@@ -170,7 +177,8 @@ export class GeminiService {
   static async analyzeResume(
     resumeText: string,
     targetRole?: string,
-    industry?: string
+    industry?: string,
+    imageData?: { buffer: Buffer; mimeType: string }
   ): Promise<ResumeAnalysisResult> {
     try {
       const prompt = `
@@ -198,7 +206,11 @@ export class GeminiService {
           "keywordOptimization": { "score": number, "industryKeywords": string[], "missingKeywords": string[], "suggestions": string[] },
           "formatting": { "score": number, "feedback": string, "suggestions": string[] },
           "skillGapAnalysis": { "currentSkills": string[], "recommendedSkills": string[], "prioritySkills": string[] },
-          "improvementSuggestions": string[]
+          "improvementSuggestions": string[],
+          "jobSuggestions": [
+            { "title": string, "company": string, "reasoning": string, "matchScore": number }
+          ],
+          "matchingRoles": string[]
         }
         
         Be thorough and specific in your analysis. Consider ATS compatibility, keyword optimization, and industry best practices.
@@ -207,9 +219,65 @@ export class GeminiService {
       const result = await generateStructuredContent<ResumeAnalysisResult>(prompt, {}, {
         temperature: 0.3,
         maxOutputTokens: 4096,
+        imageData,
       });
 
-      return result;
+      // Ensure all arrays and required fields are present to satisfy Mongoose validation
+      return {
+        ...result,
+        atsScore: result.atsScore ?? 0,
+        overallFeedback: result.overallFeedback || 'Analysis complete. See details below.',
+        strengths: result.strengths || [],
+        weaknesses: result.weaknesses || [],
+        improvementSuggestions: result.improvementSuggestions || [],
+        jobSuggestions: result.jobSuggestions || [],
+        matchingRoles: result.matchingRoles || [],
+        skillGapAnalysis: {
+          currentSkills: result.skillGapAnalysis?.currentSkills || [],
+          recommendedSkills: result.skillGapAnalysis?.recommendedSkills || [],
+          prioritySkills: result.skillGapAnalysis?.prioritySkills || [],
+        },
+        sections: {
+          contactInfo: {
+            score: result.sections?.contactInfo?.score ?? 0,
+            feedback: result.sections?.contactInfo?.feedback ?? 'No info',
+            suggestions: result.sections?.contactInfo?.suggestions ?? [],
+          },
+          summary: {
+            score: result.sections?.summary?.score ?? 0,
+            feedback: result.sections?.summary?.feedback ?? 'No info',
+            suggestions: result.sections?.summary?.suggestions ?? [],
+          },
+          experience: {
+            score: result.sections?.experience?.score ?? 0,
+            feedback: result.sections?.experience?.feedback ?? 'No info',
+            suggestions: result.sections?.experience?.suggestions ?? [],
+          },
+          education: {
+            score: result.sections?.education?.score ?? 0,
+            feedback: result.sections?.education?.feedback ?? 'No info',
+            suggestions: result.sections?.education?.suggestions ?? [],
+          },
+          skills: {
+            score: result.sections?.skills?.score ?? 0,
+            feedback: result.sections?.skills?.feedback ?? 'No info',
+            suggestions: result.sections?.skills?.suggestions ?? [],
+            detectedSkills: result.sections?.skills?.detectedSkills ?? [],
+            missingSkills: result.sections?.skills?.missingSkills ?? [],
+          },
+        },
+        keywordOptimization: {
+          score: result.keywordOptimization?.score ?? 0,
+          industryKeywords: result.keywordOptimization?.industryKeywords ?? [],
+          missingKeywords: result.keywordOptimization?.missingKeywords ?? [],
+          suggestions: result.keywordOptimization?.suggestions ?? [],
+        },
+        formatting: {
+          score: result.formatting?.score ?? 0,
+          feedback: result.formatting?.feedback ?? 'No info',
+          suggestions: result.formatting?.suggestions ?? [],
+        },
+      };
     } catch (error) {
       logger.error('Resume analysis error:', error);
       throw new Error('Failed to analyze resume');
@@ -228,7 +296,7 @@ export class GeminiService {
       const prompt = `
         Generate ${questionCount} interview questions for a ${experienceLevel} level ${jobRole} position in the ${industry} industry.
         
-        Candidate Skills: ${skills.join(', ')}
+        Candidate Skills: ${(skills || []).join(', ')}
         
         Include a mix of:
         - Technical questions
@@ -277,7 +345,7 @@ export class GeminiService {
         
         Candidate Answer: ${answer}
         
-        Expected Answer Points: ${expectedPoints.join(', ')}
+        Expected Answer Points: ${(expectedPoints || []).join(', ')}
         
         Question Category: ${category}
         
@@ -322,7 +390,7 @@ export class GeminiService {
         
         Experience: ${JSON.stringify(experience)}
         
-        Skills: ${skills.join(', ')}
+        Skills: ${(skills || []).join(', ')}
         
         ${targetRole ? `Target Role: ${targetRole}` : ''}
         
@@ -366,7 +434,7 @@ export class GeminiService {
       const prompt = `
         Generate a personalized career roadmap for someone transitioning from ${currentRole} (${currentLevel}) to ${targetRole} (${targetLevel}) in the ${industry} industry.
         
-        Current Skills: ${currentSkills.join(', ')}
+        Current Skills: ${(currentSkills || []).join(', ')}
         Years of Experience: ${yearsOfExperience}
         
         Provide the roadmap in the following JSON format:
@@ -432,16 +500,16 @@ export class GeminiService {
         Analyze how well a candidate matches a job position.
         
         Candidate Profile:
-        - Skills: ${userSkills.join(', ')}
+        - Skills: ${(userSkills || []).join(', ')}
         - Experience: ${userExperience} years
-        - Education: ${userEducation.join(', ')}
+        - Education: ${(userEducation || []).join(', ')}
         
         Job Requirements:
         - Description: ${jobDescription}
-        - Required Skills: ${requiredSkills.join(', ')}
-        - Preferred Skills: ${preferredSkills.join(', ')}
+        - Required Skills: ${(requiredSkills || []).join(', ')}
+        - Preferred Skills: ${(preferredSkills || []).join(', ')}
         - Experience Required: ${experienceRequired.min}-${experienceRequired.max} years
-        - Education Required: ${educationRequired.join(', ')}
+        - Education Required: ${(educationRequired || []).join(', ')}
         
         Provide analysis in the following JSON format:
         {
@@ -503,7 +571,16 @@ export class GeminiService {
         Provide constructive, actionable feedback that will help the candidate improve.
       `;
 
-      const result = await generateStructuredContent(prompt, {}, {
+      const result = await generateStructuredContent<{
+        summary: string;
+        strengths: string[];
+        areasForImprovement: string[];
+        communicationSkills: number;
+        technicalKnowledge: number;
+        problemSolving: number;
+        culturalFit: number;
+        recommendations: string[];
+      }>(prompt, {}, {
         temperature: 0.4,
         maxOutputTokens: 4096,
       });

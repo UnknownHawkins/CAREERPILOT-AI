@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuthStore, useUIStore } from '@/store';
@@ -19,17 +19,22 @@ import {
   Sparkles,
   ChevronRight,
   User,
+  Tv2,
 } from 'lucide-react';
 import { cn, getInitials } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
+import { CreditWidget } from '@/components/ui';
+import { PWAInstallButton } from '@/components/PWAInstallButton';
 
 const navItems = [
-  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'Resume Analyzer', href: '/resume', icon: FileText },
+  { label: 'Dashboard',       href: '/dashboard', icon: LayoutDashboard },
+  { label: 'Resume Analyzer', href: '/resume',    icon: FileText },
   { label: 'Mock Interviews', href: '/interview', icon: MessageSquare },
-  { label: 'LinkedIn Review', href: '/linkedin', icon: Linkedin },
-  { label: 'Job Matches', href: '/jobs', icon: Briefcase },
-  { label: 'Career Roadmaps', href: '/roadmap', icon: Map },
+  { label: 'LinkedIn Review', href: '/linkedin',  icon: Linkedin },
+  { label: 'Job Matches',     href: '/jobs',      icon: Briefcase },
+  { label: 'Career Roadmaps', href: '/roadmap',   icon: Map },
+  { label: 'Watch Ads',       href: '/ads',       icon: Tv2, adBadge: true },
+  { label: 'Upgrade Plan',    href: '/pricing',   icon: Sparkles, primary: true },
 ];
 
 const bottomNavItems = [
@@ -45,6 +50,11 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const { user, logout } = useAuthStore();
   const { sidebarOpen, toggleSidebar, setSidebarOpen } = useUIStore();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -68,29 +78,29 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       <div className="flex">
         {/* Sidebar */}
         <AnimatePresence mode="wait">
-          {(sidebarOpen || typeof window !== 'undefined' && window.innerWidth >= 1024) && (
+          {(sidebarOpen || (mounted && window.innerWidth >= 1024)) && (
             <motion.aside
               initial={{ x: -280 }}
               animate={{ x: 0 }}
               exit={{ x: -280 }}
               transition={{ duration: 0.3 }}
               className={cn(
-                'fixed inset-y-0 left-0 z-50 w-64 bg-card border-r lg:static lg:translate-x-0',
+                'fixed inset-y-0 left-0 z-50 w-64 bg-card border-r lg:sticky lg:top-0 lg:h-screen flex flex-col',
                 !sidebarOpen && 'lg:hidden'
               )}
             >
               {/* Sidebar Header */}
               <div className="flex items-center justify-between p-4 border-b">
                 <Link href="/dashboard" className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
+                  <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center shrink-0">
                     <Sparkles className="w-5 h-5 text-white" />
                   </div>
-                  <span className="font-bold">CareerPilot AI</span>
+                  <span className="font-bold truncate">CareerPilot AI</span>
                 </Link>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="lg:hidden"
+                  className="lg:hidden shrink-0"
                   onClick={() => setSidebarOpen(false)}
                 >
                   <X className="w-5 h-5" />
@@ -98,7 +108,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               </div>
 
               {/* Navigation */}
-              <nav className="p-4 space-y-1">
+              <nav className="p-4 space-y-1 flex-1 overflow-y-auto overflow-x-hidden">
                 {navItems.map((item) => {
                   const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
                   return (
@@ -112,16 +122,25 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                           : 'text-muted-foreground hover:bg-accent hover:text-foreground'
                       )}
                     >
-                      <item.icon className="w-5 h-5" />
-                      {item.label}
-                      {isActive && <ChevronRight className="w-4 h-4 ml-auto" />}
+                      <item.icon className={cn(
+                        'w-5 h-5 shrink-0',
+                        (item as any).primary && 'text-amber-500',
+                        (item as any).adBadge && !isActive && 'text-teal-500'
+                      )} />
+                      <span className="truncate">{item.label}</span>
+                      {(item as any).adBadge && !isActive && (
+                        <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-teal-500/15 text-teal-600 border border-teal-500/30">
+                          +Credits
+                        </span>
+                      )}
+                      {isActive && <ChevronRight className="w-4 h-4 ml-auto shrink-0" />}
                     </Link>
                   );
                 })}
               </nav>
 
               {/* Bottom Navigation */}
-              <div className="absolute bottom-0 left-0 right-0 p-4 border-t bg-card">
+              <div className="mt-auto p-4 border-t bg-card">
                 {bottomNavItems.map((item) => (
                   <Link
                     key={item.href}
@@ -133,8 +152,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                         : 'text-muted-foreground hover:bg-accent hover:text-foreground'
                     )}
                   >
-                    <item.icon className="w-5 h-5" />
-                    {item.label}
+                    <item.icon className="w-5 h-5 shrink-0" />
+                    <span className="truncate">{item.label}</span>
                   </Link>
                 ))}
 
@@ -142,12 +161,12 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 <div className="relative mt-2">
                   <button
                     onClick={() => setShowUserMenu(!showUserMenu)}
-                    className="flex items-center gap-3 w-full px-3 py-2 rounded-lg hover:bg-accent transition-colors"
+                    className="flex items-center gap-3 w-full px-3 py-2 rounded-lg hover:bg-accent transition-colors overflow-hidden"
                   >
-                    <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium">
+                    <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-medium shrink-0">
                       {getInitials(user?.fullName || user?.email || 'U')}
                     </div>
-                    <div className="flex-1 text-left">
+                    <div className="flex-1 text-left min-w-0">
                       <p className="text-sm font-medium truncate">
                         {user?.firstName} {user?.lastName}
                       </p>
@@ -158,7 +177,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                   </button>
 
                   {showUserMenu && (
-                    <div className="absolute bottom-full left-0 right-0 mb-2 p-2 bg-popover border rounded-lg shadow-lg">
+                    <div className="absolute bottom-full left-0 right-0 mb-2 p-2 bg-popover border rounded-lg shadow-lg z-50">
                       <Link
                         href="/profile"
                         className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-accent"
@@ -191,6 +210,11 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
         {/* Main Content */}
         <main className="flex-1 min-w-0">
+          {/* Top bar with credit widget */}
+          <div className="flex items-center justify-end gap-3 px-4 lg:px-8 pt-4 pb-0">
+            <PWAInstallButton />
+            <CreditWidget />
+          </div>
           <div className="p-4 lg:p-8 max-w-7xl mx-auto">
             {children}
           </div>

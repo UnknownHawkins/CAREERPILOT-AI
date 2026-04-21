@@ -10,10 +10,17 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'),
   title: 'CareerPilot AI - Your AI Career Coach',
   description: 'AI-powered career platform with resume analysis, mock interviews, LinkedIn optimization, and job matching.',
   keywords: ['career', 'AI', 'resume', 'interview', 'job search', 'LinkedIn', 'career coach'],
   authors: [{ name: 'CareerPilot AI' }],
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'CareerPilot AI',
+  },
   openGraph: {
     title: 'CareerPilot AI - Your AI Career Coach',
     description: 'AI-powered career platform with resume analysis, mock interviews, LinkedIn optimization, and job matching.',

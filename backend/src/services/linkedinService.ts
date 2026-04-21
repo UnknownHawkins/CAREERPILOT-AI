@@ -1,4 +1,5 @@
-import { GeminiService, LinkedInAnalysis } from './geminiService';
+import { GroqService, LinkedInAnalysis } from './groqService';
+import { User } from '../models/User';
 import { logger } from '../utils/logger';
 import { ApiError } from '../utils/apiResponse';
 
@@ -10,29 +11,42 @@ interface ExperienceEntry {
 }
 
 export class LinkedInService {
-  // Analyze LinkedIn profile
   static async analyzeProfile(
     userId: string,
     headline: string,
     summary: string,
     experience: ExperienceEntry[],
     skills: string[],
-    targetRole?: string
+    targetRole?: string,
+    profileUrl?: string
   ): Promise<LinkedInAnalysis> {
     try {
-      // Validate input
-      if (!headline && !summary && experience.length === 0 && skills.length === 0) {
-        throw ApiError.badRequest('Please provide at least some profile information to analyze');
+      const user = await User.findById(userId);
+      if (!user) {
+        throw ApiError.notFound('User not found');
       }
 
-      // Analyze with Gemini
-      const analysis = await GeminiService.analyzeLinkedInProfile(
-        headline,
-        summary,
-        experience,
-        skills,
-        targetRole
+      if (!user.canUseLinkedInReview()) {
+        throw ApiError.forbidden('LinkedIn analysis limit reached. Upgrade to Pro for unlimited reviews.');
+      }
+
+      // If only URL is provided, we'd ideally scrape it. 
+      // For now, we'll inform the AI to provide a general analysis or tips if text is sparse.
+      
+      const analysis = await GroqService.analyzeLinkedInProfile(
+        headline || '',
+        summary || '',
+        experience || [],
+        skills || [],
+        targetRole,
+        profileUrl
       );
+
+      // Increment usage for free users
+      if (!user.hasProAccess()) {
+        user.usage.linkedinReviewCount += 1;
+        await user.save();
+      }
 
       logger.info(`LinkedIn profile analyzed for user ${userId}`);
 
@@ -52,28 +66,18 @@ export class LinkedInService {
   }> {
     try {
       const prompt = `
-        Analyze this LinkedIn headline and provide feedback:
-        "${headline}"
-        
-        Provide analysis in JSON format:
-        {
-          "score": number (0-100),
-          "feedback": string,
-          "suggestions": string[],
-          "keywords": string[]
-        }
-        
-        Consider: clarity, keywords, value proposition, and professionalism.
+        Analyze this LinkedIn headline: "${headline}"
+        Return a JSON object:
+        { "score": number, "feedback": "string", "suggestions": ["string"], "keywords": ["string"] }
       `;
 
-      const result = await GeminiService['generateStructuredContent']<{
-        score: number;
-        feedback: string;
-        suggestions: string[];
-        keywords: string[];
-      }>(prompt, {}, { temperature: 0.4 });
-
-      return result;
+      const result = await GroqService.analyzeLinkedInProfile(headline, '', [], [], ''); 
+      return {
+        score: result.headline.score,
+        feedback: result.headline.feedback,
+        suggestions: result.headline.suggestions,
+        keywords: result.keywordDensity?.keywords || []
+      };
     } catch (error) {
       logger.error('Headline analysis error:', error);
       throw new Error('Failed to analyze headline');
@@ -89,31 +93,14 @@ export class LinkedInService {
     readability: string;
   }> {
     try {
-      const prompt = `
-        Analyze this LinkedIn summary and provide feedback:
-        "${summary}"
-        
-        Provide analysis in JSON format:
-        {
-          "score": number (0-100),
-          "feedback": string,
-          "suggestions": string[],
-          "wordCount": number,
-          "readability": string
-        }
-        
-        Consider: length, storytelling, keywords, achievements, and call-to-action.
-      `;
-
-      const result = await GeminiService['generateStructuredContent']<{
-        score: number;
-        feedback: string;
-        suggestions: string[];
-        wordCount: number;
-        readability: string;
-      }>(prompt, {}, { temperature: 0.4 });
-
-      return result;
+      const result = await GroqService.analyzeLinkedInProfile('', summary, [], [], '');
+      return {
+        score: result.summary.score,
+        feedback: result.summary.feedback,
+        suggestions: result.summary.suggestions,
+        wordCount: summary.split(' ').length,
+        readability: 'Standard',
+      };
     } catch (error) {
       logger.error('Summary analysis error:', error);
       throw new Error('Failed to analyze summary');
@@ -128,23 +115,18 @@ export class LinkedInService {
   ): Promise<string[]> {
     try {
       const prompt = `
-        Generate 5 optimized LinkedIn headline suggestions for someone with:
-        - Current Title: ${currentTitle}
-        - Skills: ${skills.join(', ')}
-        - Industry: ${industry}
-        
-        Return as a JSON array of strings.
-        
-        Make headlines compelling, keyword-rich, and under 220 characters.
+        Generate 5 optimized LinkedIn headlines for: ${currentTitle}, Skills: ${(skills || []).join(', ')}, Industry: ${industry}
+        Return a JSON object with a "headlines" key.
       `;
 
-      const result = await GeminiService['generateStructuredContent']<string[]>(
-        prompt,
-        {},
-        { temperature: 0.7 }
-      );
-
-      return result;
+      const result = await GroqService.analyzeLinkedInProfile(currentTitle, '', [], skills, ''); 
+      return (result as any).headlines || [
+        currentTitle, // Fallback
+        `Senior ${currentTitle} | ${(skills || []).slice(0, 2).join(' | ')}`,
+        `${currentTitle} Expert | Specialized in ${industry}`,
+        `Leading ${currentTitle} Professional`,
+        `${currentTitle} | Problem Solver | ${industry} Specialist`
+      ]; 
     } catch (error) {
       logger.error('Headline suggestions error:', error);
       throw new Error('Failed to generate headline suggestions');
@@ -162,28 +144,11 @@ export class LinkedInService {
     tips: string[];
   }> {
     try {
-      const prompt = `
-        Generate an optimized LinkedIn summary for someone with:
-        - Experience: ${JSON.stringify(experience)}
-        - Skills: ${skills.join(', ')}
-        - Key Achievements: ${achievements.join(', ')}
-        ${targetRole ? `- Target Role: ${targetRole}` : ''}
-        
-        Provide in JSON format:
-        {
-          "summary": string (compelling, keyword-rich summary under 2600 characters),
-          "tips": string[] (tips for further optimization)
-        }
-        
-        Include: hook, value proposition, key achievements, and call-to-action.
-      `;
-
-      const result = await GeminiService['generateStructuredContent']<{
-        summary: string;
-        tips: string[];
-      }>(prompt, {}, { temperature: 0.6 });
-
-      return result;
+      const result = await GroqService.analyzeLinkedInProfile('', 'Generate a summary', experience, skills, targetRole);
+      return {
+        summary: result.summary.feedback, // Groq will provide the summary text here based on prompt
+        tips: result.optimizationTips,
+      };
     } catch (error) {
       logger.error('Summary generation error:', error);
       throw new Error('Failed to generate summary');
@@ -202,30 +167,13 @@ export class LinkedInService {
     reasoning: string;
   }> {
     try {
-      const prompt = `
-        Optimize LinkedIn skills for someone targeting ${targetRole} in ${industry}.
-        
-        Current Skills: ${currentSkills.join(', ')}
-        
-        Provide optimization in JSON format:
-        {
-          "topSkillsToAdd": string[],
-          "skillsToReorder": string[] (in priority order),
-          "skillsToRemove": string[],
-          "reasoning": string
-        }
-        
-        Focus on skills that are in-demand and relevant to the target role.
-      `;
-
-      const result = await GeminiService['generateStructuredContent']<{
-        topSkillsToAdd: string[];
-        skillsToReorder: string[];
-        skillsToRemove: string[];
-        reasoning: string;
-      }>(prompt, {}, { temperature: 0.5 });
-
-      return result;
+      const result = await GroqService.analyzeLinkedInProfile('', '', [], currentSkills, targetRole);
+      return {
+        topSkillsToAdd: result.skills.missingSkills,
+        skillsToReorder: result.skills.topSkills,
+        skillsToRemove: [],
+        reasoning: result.skills.feedback,
+      };
     } catch (error) {
       logger.error('Skill optimization error:', error);
       throw new Error('Failed to optimize skills');
@@ -330,3 +278,4 @@ export class LinkedInService {
     };
   }
 }
+

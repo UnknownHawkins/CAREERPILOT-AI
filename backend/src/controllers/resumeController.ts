@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { ResumeService } from '../services/resumeService';
+import { User } from '../models/User';
 import { successResponse, errorResponse, ApiError } from '../utils/apiResponse';
 import { logger } from '../utils/logger';
 
@@ -7,25 +8,57 @@ export class ResumeController {
   // Upload and analyze resume
   static async uploadAndAnalyze(req: Request, res: Response): Promise<void> {
     try {
-      if (!req.file) {
-        throw ApiError.badRequest('No file uploaded');
+      const user = await User.findById(req.user!._id);
+      if (!user) throw ApiError.notFound('User not found');
+
+      if (!user.canUseResumeAnalysis()) {
+        throw ApiError.forbidden('Resume analysis limit reached. Upgrade to Pro for unlimited analyses.');
       }
 
-      const userId = req.user!._id.toString();
-      const { targetRole, industry } = req.body;
+      const userId = user._id.toString();
+      const { targetRole, industry, resumeText } = req.body;
 
-      const fileBuffer = req.file.buffer;
-      const originalFileName = req.file.originalname;
-      const fileType = req.file.mimetype.includes('pdf') ? 'pdf' : 'docx';
+      let analysis;
 
-      const analysis = await ResumeService.uploadAndAnalyze(
-        userId,
-        fileBuffer,
-        originalFileName,
-        fileType,
-        targetRole,
-        industry
-      );
+      if (req.file) {
+        // ... (existing file handling logic)
+        const fileBuffer = req.file.buffer;
+        const originalFileName = req.file.originalname;
+        const mimetype = req.file.mimetype;
+        let fileType: string = 'pdf';
+        
+        if (mimetype.includes('pdf')) fileType = 'pdf';
+        else if (mimetype.includes('word') || mimetype.includes('officedocument')) fileType = 'docx';
+        else if (mimetype.includes('image')) fileType = 'image';
+
+        analysis = await ResumeService.uploadAndAnalyze(
+          userId,
+          fileBuffer,
+          originalFileName,
+          fileType,
+          mimetype,
+          targetRole,
+          industry
+        );
+      } else if (resumeText) {
+        analysis = await ResumeService.uploadAndAnalyze(
+          userId,
+          Buffer.from(resumeText),
+          'pasted-content.txt',
+          'email',
+          'text/plain',
+          targetRole,
+          industry
+        );
+      } else {
+        throw ApiError.badRequest('No file uploaded or text provided');
+      }
+
+      // Increment usage for free users
+      if (!user.hasProAccess()) {
+        user.usage.resumeAnalysisCount += 1;
+        await user.save();
+      }
 
       successResponse(
         res,

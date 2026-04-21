@@ -6,6 +6,7 @@ import linkedinRoutes from './linkedin';
 import roadmapRoutes from './roadmap';
 import jobMatchRoutes from './jobMatch';
 import subscriptionRoutes from './subscription';
+import activityRoutes from './activity';
 
 const router = Router();
 
@@ -29,5 +30,6 @@ router.use(`${API_VERSION}/linkedin`, linkedinRoutes);
 router.use(`${API_VERSION}/roadmap`, roadmapRoutes);
 router.use(`${API_VERSION}/jobs`, jobMatchRoutes);
 router.use(`${API_VERSION}/subscription`, subscriptionRoutes);
+router.use(`${API_VERSION}/activity`, activityRoutes);
 
 export default router;

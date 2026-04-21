@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { InterviewService } from '../services/interviewService';
+import { User } from '../models/User';
 import { successResponse, ApiError } from '../utils/apiResponse';
 import { logger } from '../utils/logger';
 
@@ -7,7 +8,14 @@ export class InterviewController {
   // Create new interview session
   static async createSession(req: Request, res: Response): Promise<void> {
     try {
-      const userId = req.user!._id.toString();
+      const user = await User.findById(req.user!._id);
+      if (!user) throw ApiError.notFound('User not found');
+
+      if (!user.canUseInterview()) {
+        throw ApiError.forbidden('Interview limit reached. Upgrade to Pro for unlimited sessions.');
+      }
+
+      const userId = user._id.toString();
       const {
         sessionType = 'practice',
         jobRole,
@@ -29,6 +37,12 @@ export class InterviewController {
         skills || []
       );
 
+      // Increment usage for free users
+      if (!user.hasProAccess()) {
+        user.usage.interviewSessionsCount += 1;
+        await user.save();
+      }
+
       successResponse(
         res,
         session,
@@ -37,6 +51,26 @@ export class InterviewController {
       );
     } catch (error) {
       logger.error('Create interview session error:', error);
+      throw error;
+    }
+  }
+
+  // Transcribe audio answer using Groq Whisper
+  static async transcribe(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.file) {
+        throw ApiError.badRequest('No audio file provided');
+      }
+
+      const { GroqService } = await import('../services/groqService');
+      const transcription = await GroqService.transcribeAudio(
+        req.file.buffer,
+        req.file.originalname
+      );
+
+      successResponse(res, { transcription }, 'Audio transcribed successfully');
+    } catch (error) {
+      logger.error('Transcription error:', error);
       throw error;
     }
   }
@@ -223,14 +257,14 @@ export class InterviewController {
 
       const responseTips: string[] = [];
       
-      if (category && tips[category as string]) {
-        responseTips.push(...tips[category as string]);
+      if (category && tips[category as keyof typeof tips]) {
+        responseTips.push(...tips[category as keyof typeof tips]);
       } else {
         responseTips.push(...tips.general);
       }
 
-      if (experienceLevel && tips[experienceLevel as string]) {
-        responseTips.push(...tips[experienceLevel as string]);
+      if (experienceLevel && tips[experienceLevel as keyof typeof tips]) {
+        responseTips.push(...tips[experienceLevel as keyof typeof tips]);
       }
 
       successResponse(res, { tips: responseTips });

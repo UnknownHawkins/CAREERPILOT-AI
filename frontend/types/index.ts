@@ -5,7 +5,7 @@ export interface User {
   firstName: string;
   lastName: string;
   fullName?: string;
-  role: 'free' | 'pro' | 'admin';
+  role: 'free' | 'pro' | 'enterprise' | 'admin';
   avatar?: string;
   skills: string[];
   experience: ExperienceEntry[];
@@ -44,7 +44,11 @@ export interface SubscriptionInfo {
 export interface UsageInfo {
   resumeAnalysisCount: number;
   interviewSessionsCount: number;
+  linkedinReviewCount?: number;
+  jobMatchCount?: number;
   lastResetDate: string;
+  adCredits?: number;
+  adsWatchedThisSession?: number;
 }
 
 export interface UserPreferences {

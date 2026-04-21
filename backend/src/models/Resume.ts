@@ -3,8 +3,9 @@ import mongoose, { Document, Schema } from 'mongoose';
 export interface IResumeAnalysis extends Document {
   userId: mongoose.Types.ObjectId;
   originalFileName: string;
-  fileUrl: string;
-  fileType: 'pdf' | 'docx' | 'doc';
+  fileUrl?: string; // Made optional
+  fileData?: Buffer; // Store raw file directly in MongoDB
+  fileType: 'pdf' | 'docx' | 'doc' | 'image' | 'email';
   extractedText: string;
   atsScore: number;
   analysis: {
@@ -58,6 +59,13 @@ export interface IResumeAnalysis extends Document {
     prioritySkills: string[];
   };
   improvementSuggestions: string[];
+  jobSuggestions: {
+    title: string;
+    company: string;
+    reasoning: string;
+    matchScore: number;
+  }[];
+  matchingRoles: string[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -76,11 +84,15 @@ const ResumeAnalysisSchema = new Schema<IResumeAnalysis>(
     },
     fileUrl: {
       type: String,
-      required: true,
+      required: false,
+    },
+    fileData: {
+      type: Buffer,
+      required: false,
     },
     fileType: {
       type: String,
-      enum: ['pdf', 'docx', 'doc'],
+      enum: ['pdf', 'docx', 'doc', 'image', 'email'],
       required: true,
     },
     extractedText: {
@@ -147,6 +159,15 @@ const ResumeAnalysisSchema = new Schema<IResumeAnalysis>(
       prioritySkills: [String],
     },
     improvementSuggestions: [String],
+    jobSuggestions: [
+      {
+        title: String,
+        company: String,
+        reasoning: String,
+        matchScore: Number,
+      },
+    ],
+    matchingRoles: [String],
   },
   {
     timestamps: true,

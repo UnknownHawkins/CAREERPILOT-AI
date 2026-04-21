@@ -63,6 +63,12 @@ export interface ISubscription extends Document {
   }[];
   createdAt: Date;
   updatedAt: Date;
+
+  isFeatureAvailable(featureName: string): boolean;
+  checkUsageLimit(featureName: string): boolean;
+  incrementUsage(featureName: string): Promise<void>;
+  resetMonthlyUsage(): Promise<void>;
+  resetWeeklyUsage(): Promise<void>;
 }
 
 const SubscriptionSchema = new Schema<ISubscription>(
@@ -82,7 +88,7 @@ const SubscriptionSchema = new Schema<ISubscription>(
     status: {
       type: String,
       enum: ['active', 'cancelled', 'expired', 'pending', 'trial'],
-      default: 'free',
+      default: 'active',
     },
     billingCycle: {
       type: String,
@@ -176,7 +182,7 @@ SubscriptionSchema.index({ endDate: 1 });
 SubscriptionSchema.index({ 'paymentDetails.stripeSubscriptionId': 1 });
 
 // Pre-save middleware to set features based on plan
-SubscriptionSchema.pre('save', function (next) {
+SubscriptionSchema.pre('save', function (this: ISubscription, next) {
   const planFeatures = {
     free: {
       resumeAnalysis: { enabled: true, monthlyLimit: 3, used: 0 },
@@ -211,7 +217,7 @@ SubscriptionSchema.pre('save', function (next) {
   };
 
   if (this.isModified('plan')) {
-    this.features = planFeatures[this.plan];
+    this.features = planFeatures[this.plan as keyof typeof planFeatures];
   }
   next();
 });

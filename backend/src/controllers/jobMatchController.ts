@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { JobMatchService } from '../services/jobMatchService';
+import { User } from '../models/User';
 import { successResponse, ApiError } from '../utils/apiResponse';
 import { logger } from '../utils/logger';
 
@@ -7,7 +8,14 @@ export class JobMatchController {
   // Create job match
   static async createJobMatch(req: Request, res: Response): Promise<void> {
     try {
-      const userId = req.user!._id.toString();
+      const user = await User.findById(req.user!._id);
+      if (!user) throw ApiError.notFound('User not found');
+
+      if (!user.canUseJobMatch()) {
+        throw ApiError.forbidden('Job match limit reached. Upgrade to Pro for unlimited matches.');
+      }
+
+      const userId = user._id.toString();
       const jobData = req.body;
 
       // Validate required fields
@@ -19,6 +27,12 @@ export class JobMatchController {
       }
 
       const jobMatch = await JobMatchService.createJobMatch(userId, jobData);
+
+      // Increment usage for free users
+      if (!user.hasProAccess()) {
+        user.usage.jobMatchCount += 1;
+        await user.save();
+      }
 
       successResponse(
         res,
@@ -217,6 +231,30 @@ export class JobMatchController {
       );
     } catch (error) {
       logger.error('Bulk create job matches error:', error);
+      throw error;
+    }
+  }
+
+  // Find matching jobs using AI
+  static async findJobs(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = req.user!._id.toString();
+      const { role, location, jobType, salaryMin } = req.body;
+
+      if (!role) {
+        throw ApiError.badRequest('Role/Job Title is required');
+      }
+
+      const jobs = await JobMatchService.findJobs(userId, {
+        role,
+        location,
+        jobType,
+        salaryMin: salaryMin ? parseInt(salaryMin) : undefined,
+      });
+
+      successResponse(res, jobs, 'Jobs found successfully');
+    } catch (error) {
+      logger.error('Find jobs controller error:', error);
       throw error;
     }
   }

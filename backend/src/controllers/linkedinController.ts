@@ -28,7 +28,8 @@ export class LinkedInController {
         summary || '',
         experience || [],
         skills || [],
-        targetRole
+        targetRole,
+        profileUrl
       );
 
       successResponse(res, analysis);

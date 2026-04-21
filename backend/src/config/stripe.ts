@@ -76,7 +76,9 @@ export const cancelStripeSubscription = async (
 ): Promise<Stripe.Subscription> => {
   try {
     const stripe = getStripeClient();
-    const subscription = await stripe.subscriptions.cancel(subscriptionId);
+    const subscription = await stripe.subscriptions.update(subscriptionId, {
+      cancel_at_period_end: true,
+    });
     return subscription;
   } catch (error) {
     logger.error('Stripe subscription cancellation error:', error);

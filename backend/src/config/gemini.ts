@@ -6,18 +6,18 @@ let geminiModel: GenerativeModel | null = null;
 
 export const initializeGemini = (): void => {
   try {
-    const apiKey = "AIzaSyCe3gWWQy-wd6jvZkEhKYtfHPZ3DahDmJE";
+    const apiKey = "rgwARr5EWMS4W1JMFvRZcoqCg3Q2x1bDFEgMRdEkSMwOo7ixUU9qUc2xC7_iT4Hj";
     
     if (!apiKey) {
       throw new Error('GEMINI_API_KEY is not defined in environment variables');
     }
     
     geminiClient = new GoogleGenerativeAI(apiKey);
-    geminiModel = geminiClient.getGenerativeModel({ model: 'gemini-pro' });
+    geminiModel = geminiClient.getGenerativeModel({ model: 'gemini-2.5-flash' });
     
     logger.info('Gemini AI initialized successfully');
-  } catch (error) {
-    logger.error('Gemini initialization error:', error);
+  } catch (error: any) {
+    logger.error('Gemini initialization error:', error?.response || error?.message || error);
     throw error;
   }
 };
@@ -70,6 +70,10 @@ export const generateStructuredContent = async <T>(
   options?: {
     temperature?: number;
     maxOutputTokens?: number;
+    imageData?: {
+      buffer: Buffer;
+      mimeType: string;
+    };
   }
 ): Promise<T> => {
   try {
@@ -80,16 +84,32 @@ export const generateStructuredContent = async <T>(
       maxOutputTokens: options?.maxOutputTokens ?? 4096,
       responseMimeType: 'application/json',
     };
+
+    const parts: any[] = [{ text: prompt }];
+    if (options?.imageData) {
+      parts.push({
+        inlineData: {
+          data: options.imageData.buffer.toString('base64'),
+          mimeType: options.imageData.mimeType,
+        },
+      });
+    }
     
     const result = await model.generateContent({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      contents: [{ role: 'user', parts }],
       generationConfig,
     });
     
-    const responseText = result.response.text();
+    let responseText = result.response.text();
+    
+    // Strip markdown formatting if the model still wraps the JSON
+    if (responseText.includes('```')) {
+      responseText = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
+    }
+    
     return JSON.parse(responseText) as T;
-  } catch (error) {
-    logger.error('Gemini structured content generation error:', error);
+  } catch (error: any) {
+    logger.error('Gemini structured content generation error detailed:', error?.response || error?.message || error);
     throw error;
   }
 };

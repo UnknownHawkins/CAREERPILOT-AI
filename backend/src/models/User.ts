@@ -6,7 +6,7 @@ export interface IUser extends Document {
   password: string;
   firstName: string;
   lastName: string;
-  role: 'free' | 'pro' | 'admin';
+  role: 'free' | 'pro' | 'enterprise' | 'admin';
   avatar?: string;
   skills: string[];
   experience: {
@@ -34,7 +34,11 @@ export interface IUser extends Document {
   usage: {
     resumeAnalysisCount: number;
     interviewSessionsCount: number;
+    linkedinReviewCount: number;
+    jobMatchCount: number;
     lastResetDate: Date;
+    adCredits: number;        // extra credits earned by watching ads
+    adsWatchedThisSession: number; // tracks ads in current earning session
   };
   preferences: {
     theme: 'light' | 'dark' | 'system';
@@ -50,6 +54,10 @@ export interface IUser extends Document {
   hasProAccess(): boolean;
   canUseResumeAnalysis(): boolean;
   canUseInterview(): boolean;
+  canUseLinkedInReview(): boolean;
+  canUseJobMatch(): boolean;
+  canUseRoadmap(): boolean;
+  earnAdCredit(): Promise<{ credited: boolean; adsWatched: number; totalCredits: number }>;
 }
 
 const UserSchema = new Schema<IUser>(
@@ -80,7 +88,7 @@ const UserSchema = new Schema<IUser>(
     },
     role: {
       type: String,
-      enum: ['free', 'pro', 'admin'],
+      enum: ['free', 'pro', 'enterprise', 'admin'],
       default: 'free',
     },
     avatar: {
@@ -132,18 +140,13 @@ const UserSchema = new Schema<IUser>(
       stripeSubscriptionId: String,
     },
     usage: {
-      resumeAnalysisCount: {
-        type: Number,
-        default: 0,
-      },
-      interviewSessionsCount: {
-        type: Number,
-        default: 0,
-      },
-      lastResetDate: {
-        type: Date,
-        default: Date.now,
-      },
+      resumeAnalysisCount: { type: Number, default: 0 },
+      interviewSessionsCount: { type: Number, default: 0 },
+      linkedinReviewCount: { type: Number, default: 0 },
+      jobMatchCount: { type: Number, default: 0 },
+      lastResetDate: { type: Date, default: Date.now },
+      adCredits: { type: Number, default: 0 },
+      adsWatchedThisSession: { type: Number, default: 0 },
     },
     preferences: {
       theme: {
@@ -174,7 +177,6 @@ const UserSchema = new Schema<IUser>(
 );
 
 // Indexes
-UserSchema.index({ email: 1 });
 UserSchema.index({ role: 1 });
 UserSchema.index({ 'subscription.status': 1 });
 
@@ -212,27 +214,72 @@ UserSchema.methods.hasProAccess = function (): boolean {
   );
 };
 
-// Check if user can use resume analysis (free: 3/month)
+// Check if user can use resume analysis (free: 2 credits)
 UserSchema.methods.canUseResumeAnalysis = function (): boolean {
   if (this.hasProAccess()) return true;
-  
-  const now = new Date();
-  const lastReset = new Date(this.usage.lastResetDate);
-  const monthDiff = now.getMonth() - lastReset.getMonth() + 
-    (now.getFullYear() - lastReset.getFullYear()) * 12;
-  
-  if (monthDiff > 0) {
-    this.usage.resumeAnalysisCount = 0;
-    this.usage.lastResetDate = now;
-  }
-  
-  return this.usage.resumeAnalysisCount < 3;
+  this.resetUsageIfNewMonth();
+  return this.usage.resumeAnalysisCount < 2;
 };
 
-// Check if user can use interview (free: 1 session with 3 questions)
+// Check if user can use interview (free: 2 credits)
 UserSchema.methods.canUseInterview = function (): boolean {
   if (this.hasProAccess()) return true;
-  return this.usage.interviewSessionsCount < 1;
+  this.resetUsageIfNewMonth();
+  return this.usage.interviewSessionsCount < 2;
+};
+
+// Check if user can use LinkedIn review (free: 2 credits)
+UserSchema.methods.canUseLinkedInReview = function (): boolean {
+  if (this.hasProAccess()) return true;
+  this.resetUsageIfNewMonth();
+  return this.usage.linkedinReviewCount < 2;
+};
+
+// Check if user can use job match (free: 2 credits)
+UserSchema.methods.canUseJobMatch = function (): boolean {
+  if (this.hasProAccess()) return true;
+  this.resetUsageIfNewMonth();
+  return this.usage.jobMatchCount < 2;
+};
+
+// Check if user can use roadmap (Free for all)
+UserSchema.methods.canUseRoadmap = function (): boolean {
+  return true;
+};
+
+// Helper to reset usage monthly
+UserSchema.methods.resetUsageIfNewMonth = function (): void {
+  const now = new Date();
+  const lastReset = new Date(this.usage.lastResetDate);
+  const monthDiff = now.getMonth() - lastReset.getMonth() +
+    (now.getFullYear() - lastReset.getFullYear()) * 12;
+
+  if (monthDiff > 0) {
+    this.usage.resumeAnalysisCount = 0;
+    this.usage.interviewSessionsCount = 0;
+    this.usage.linkedinReviewCount = 0;
+    this.usage.jobMatchCount = 0;
+    this.usage.adsWatchedThisSession = 0;
+    this.usage.lastResetDate = now;
+  }
+};
+
+// Earn credits by watching ads: every 2 ads = 1 credit
+UserSchema.methods.earnAdCredit = async function () {
+  this.usage.adsWatchedThisSession = (this.usage.adsWatchedThisSession || 0) + 1;
+  let credited = false;
+
+  if (this.usage.adsWatchedThisSession % 2 === 0) {
+    this.usage.adCredits = (this.usage.adCredits || 0) + 1;
+    credited = true;
+  }
+
+  await this.save();
+  return {
+    credited,
+    adsWatched: this.usage.adsWatchedThisSession,
+    totalCredits: this.usage.adCredits,
+  };
 };
 
 // Virtual for full name

@@ -37,7 +37,7 @@ export const useAuthStore = create<AuthState>()(
       login: async (email, password) => {
         set({ isLoading: true, error: null });
         try {
-          const response = await authApi.login({ email, password });
+          const response = (await authApi.login({ email, password })) as any;
           const { user, tokens } = response.data;
           
           // Store tokens in localStorage
@@ -51,8 +51,13 @@ export const useAuthStore = create<AuthState>()(
             isLoading: false,
           });
         } catch (error: any) {
+          const errorMessage = 
+            error.response?.data?.errors?.[0]?.msg ||
+            error.response?.data?.errors?.[0]?.message ||
+            error.response?.data?.message || 
+            (error.message === 'Network Error' ? 'Cannot connect to server. Please ensure backend is running.' : 'Login failed');
           set({
-            error: error.response?.data?.message || 'Login failed',
+            error: errorMessage,
             isLoading: false,
           });
           throw error;
@@ -62,7 +67,7 @@ export const useAuthStore = create<AuthState>()(
       register: async (data) => {
         set({ isLoading: true, error: null });
         try {
-          const response = await authApi.register(data);
+          const response = (await authApi.register(data)) as any;
           const { user, tokens } = response.data;
           
           localStorage.setItem('accessToken', tokens.accessToken);
@@ -75,8 +80,13 @@ export const useAuthStore = create<AuthState>()(
             isLoading: false,
           });
         } catch (error: any) {
+          const errorMessage = 
+            error.response?.data?.errors?.[0]?.msg ||
+            error.response?.data?.errors?.[0]?.message ||
+            error.response?.data?.message || 
+            (error.message === 'Network Error' ? 'Cannot connect to server. Please ensure backend is running.' : 'Registration failed');
           set({
-            error: error.response?.data?.message || 'Registration failed',
+            error: errorMessage,
             isLoading: false,
           });
           throw error;
@@ -100,7 +110,7 @@ export const useAuthStore = create<AuthState>()(
 
       updateUser: async (data) => {
         try {
-          const response = await authApi.updateProfile(data);
+          const response = (await authApi.updateProfile(data)) as any;
           set({ user: response.data });
         } catch (error) {
           throw error;
@@ -113,7 +123,7 @@ export const useAuthStore = create<AuthState>()(
 
       refreshUser: async () => {
         try {
-          const response = await authApi.getMe();
+          const response = await authApi.getMe() as any;
           set({ user: response.data.user });
         } catch (error) {
           // If refresh fails, logout

@@ -6,12 +6,13 @@ import {
   CardTitle,
   CardDescription,
   CardFooter,
+  Button,
+  Badge,
 } from '@/components/ui';
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store';
-import { Button } from '@/components/ui';
 import { motion } from 'framer-motion';
 import {
   FileText,
@@ -82,7 +83,7 @@ const pricingPlans = [
   },
   {
     name: 'Pro',
-    price: '$29',
+    price: '$9',
     period: 'per month',
     description: 'Unlock unlimited career growth',
     features: [
@@ -99,7 +100,7 @@ const pricingPlans = [
   },
   {
     name: 'Enterprise',
-    price: '$99',
+    price: '$29',
     period: 'per month',
     description: 'For teams and organizations',
     features: [
@@ -305,5 +306,3 @@ export default function LandingPage() {
     </div>
   );
 }
-
-import { Badge } from '@/components/ui';

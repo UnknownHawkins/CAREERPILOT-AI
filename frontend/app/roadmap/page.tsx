@@ -32,7 +32,7 @@ const levels = [
   { value: 'executive', label: 'Executive' },
 ];
 
-const milestoneCategories = {
+const milestoneCategories: Record<string, { icon: any, color: string }> = {
   skill: { icon: BookOpen, color: 'bg-blue-500' },
   certification: { icon: Award, color: 'bg-purple-500' },
   experience: { icon: Briefcase, color: 'bg-green-500' },
@@ -46,6 +46,7 @@ interface Roadmap {
   targetLevel: string;
   industry: string;
   progress: { completedMilestones: number; totalMilestones: number; percentage: number };
+  targetSkills: string[];
   milestones: {
     id: string;
     title: string;
@@ -54,6 +55,7 @@ interface Roadmap {
     priority: 'high' | 'medium' | 'low';
     estimatedDuration: string;
     completed: boolean;
+    resources: { title: string; url: string; type: string }[];
   }[];
   timeline: { shortTerm: string[]; midTerm: string[]; longTerm: string[] };
   estimatedTimeToGoal: string;
@@ -80,7 +82,7 @@ export default function RoadmapPage() {
 
     setIsCreating(true);
     try {
-      const response = (await roadmapApi.create(formData)) as any;
+      const response = (await roadmapApi.createRoadmap(formData)) as any;
       setRoadmaps([response.data, ...roadmaps]);
       setShowCreateForm(false);
       setFormData({ targetRole: '', targetLevel: '', industry: '' });
@@ -217,29 +219,52 @@ export default function RoadmapPage() {
               </CardContent>
             </Card>
           ) : (
-            roadmaps.map((roadmap) => (
-              <Card key={roadmap._id}>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
+            roadmaps.map((roadmap: Roadmap) => (
+              <Card key={roadmap._id} className="glass-morphism border-primary/20 overflow-hidden group mb-6">
+                <CardHeader className="relative">
+                  <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                    <Map className="w-24 h-24 rotate-12" />
+                  </div>
+                  <div className="flex items-center justify-between relative z-10">
                     <div>
-                      <CardTitle className="flex items-center gap-2">
-                        <Target className="w-5 h-5" />
+                      <CardTitle className="flex items-center gap-2 text-2xl font-bold">
+                        <Target className="w-6 h-6 text-primary" />
                         {roadmap.targetRole}
                       </CardTitle>
-                      <p className="text-sm text-muted-foreground">
-                        {levels.find(l => l.value === roadmap.targetLevel)?.label} • {roadmap.industry}
-                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge variant="outline" className="bg-primary/5 border-primary/20">
+                          {levels.find(l => l.value === roadmap.targetLevel)?.label}
+                        </Badge>
+                        <span className="text-sm text-muted-foreground">in {roadmap.industry}</span>
+                        <Badge variant="secondary" className="bg-green-500/10 text-green-500 border-none ml-2">
+                          <Clock className="w-3 h-3 mr-1" />
+                          {roadmap.estimatedTimeToGoal}
+                        </Badge>
+                      </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-2xl font-bold">{roadmap.progress.percentage}%</div>
-                      <p className="text-xs text-muted-foreground">
-                        {roadmap.progress.completedMilestones}/{roadmap.progress.totalMilestones} milestones
+                      <div className="text-3xl font-bold text-primary">{roadmap.progress.percentage}%</div>
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">
+                        Progress
                       </p>
                     </div>
                   </div>
-                  <Progress value={roadmap.progress.percentage} className="mt-4" />
+                  <Progress value={roadmap.progress.percentage} className="mt-6 h-2" />
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-6">
+                  {/* Skills Section */}
+                  {roadmap.targetSkills && (
+                    <div className="p-4 bg-white/5 rounded-xl border border-white/10">
+                      <h4 className="text-xs font-bold uppercase tracking-widest text-primary mb-3">Target Skillset</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {roadmap.targetSkills.map((skill: string) => (
+                          <Badge key={skill} className="bg-primary/20 text-primary border-primary/30 py-0.5 px-2">
+                            {skill}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   {/* Timeline Overview */}
                   <div className="grid md:grid-cols-3 gap-4 mb-6">
                     <div className="bg-muted rounded-lg p-4">
@@ -248,7 +273,7 @@ export default function RoadmapPage() {
                         Short Term (0-3 months)
                       </h4>
                       <ul className="space-y-1">
-                        {roadmap.timeline.shortTerm.slice(0, 3).map((item, i) => (
+                        {roadmap.timeline.shortTerm.slice(0, 3).map((item: string, i: number) => (
                           <li key={i} className="text-sm text-muted-foreground">• {item}</li>
                         ))}
                       </ul>
@@ -259,7 +284,7 @@ export default function RoadmapPage() {
                         Mid Term (3-6 months)
                       </h4>
                       <ul className="space-y-1">
-                        {roadmap.timeline.midTerm.slice(0, 3).map((item, i) => (
+                        {roadmap.timeline.midTerm.slice(0, 3).map((item: string, i: number) => (
                           <li key={i} className="text-sm text-muted-foreground">• {item}</li>
                         ))}
                       </ul>
@@ -270,7 +295,7 @@ export default function RoadmapPage() {
                         Long Term (6-12 months)
                       </h4>
                       <ul className="space-y-1">
-                        {roadmap.timeline.longTerm.slice(0, 3).map((item, i) => (
+                        {roadmap.timeline.longTerm.slice(0, 3).map((item: string, i: number) => (
                           <li key={i} className="text-sm text-muted-foreground">• {item}</li>
                         ))}
                       </ul>
@@ -281,7 +306,7 @@ export default function RoadmapPage() {
                   <div>
                     <h4 className="font-medium mb-3">Milestones</h4>
                     <div className="space-y-2">
-                      {roadmap.milestones.slice(0, 5).map((milestone) => {
+                      {roadmap.milestones.slice(0, 5).map((milestone: any) => {
                         const category = milestoneCategories[milestone.category];
                         const Icon = category.icon;
                         return (
@@ -307,15 +332,36 @@ export default function RoadmapPage() {
                               <Icon className="w-4 h-4 text-white" />
                             </div>
                             <div className="flex-1">
-                              <p className={cn('font-medium', milestone.completed && 'line-through text-muted-foreground')}>
+                              <p className={cn('font-medium text-white', milestone.completed && 'line-through text-gray-500')}>
                                 {milestone.title}
                               </p>
-                              <p className="text-sm text-muted-foreground">{milestone.description}</p>
+                              <p className="text-sm text-gray-400 mb-2">{milestone.description}</p>
+                              
+                              {/* External Resources */}
+                              {milestone.resources && milestone.resources.length > 0 && (
+                                <div className="flex flex-wrap gap-2 mt-2">
+                                  {milestone.resources.map((res: any, i: number) => (
+                                    <a
+                                      key={i}
+                                      href={res.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex items-center gap-1.5 px-2 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-md text-[10px] text-primary transition-all"
+                                    >
+                                      <BookOpen className="w-3 h-3" />
+                                      {res.title}
+                                      <ChevronRight className="w-2 h-2" />
+                                    </a>
+                                  ))}
+                                </div>
+                              )}
                             </div>
-                            <Badge variant={milestone.priority === 'high' ? 'destructive' : milestone.priority === 'medium' ? 'warning' : 'secondary'}>
-                              {milestone.priority}
-                            </Badge>
-                            <span className="text-sm text-muted-foreground">{milestone.estimatedDuration}</span>
+                            <div className="flex flex-col items-end gap-2">
+                              <Badge variant={milestone.priority === 'high' ? 'destructive' : milestone.priority === 'medium' ? 'warning' : 'secondary'} className="text-[10px] uppercase">
+                                {milestone.priority}
+                              </Badge>
+                              <span className="text-[10px] text-gray-500 font-mono">{milestone.estimatedDuration}</span>
+                            </div>
                           </div>
                         );
                       })}

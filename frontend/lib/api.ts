@@ -2,7 +2,7 @@ import axios, { AxiosInstance, AxiosError, AxiosRequestConfig } from 'axios';
 
 // Create axios instance
 const api: AxiosInstance = axios.create({
-  baseURL: 'http://localhost:5000/api/v1',
+  baseURL: '/api',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -54,7 +54,7 @@ api.interceptors.response.use(
 
         // ✅ FIXED: Correct refresh token URL
         const response = await axios.post(
-          'http://localhost:5000/api/v1/auth/refresh-token',
+          '/api/auth/refresh-token',
           { refreshToken }
         );
 
@@ -127,6 +127,82 @@ export const authApi = {
   }) => apiClient.put('/auth/change-password', data),
 
   getStats: () => apiClient.get('/auth/stats'),
+};
+
+// Resume API
+export const resumeApi = {
+  upload: (data: FormData) =>
+    apiClient.post('/resume/upload', data, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+  getAnalyses: () => apiClient.get('/resume'),
+  getAnalysisById: (id: string) => apiClient.get(`/resume/${id}`),
+  reanalyze: (id: string) => apiClient.post(`/resume/${id}/reanalyze`),
+};
+
+// Interview API
+export const interviewApi = {
+  createSession: (data: any) => apiClient.post('/interview', data),
+  getSessions: () => apiClient.get('/interview'),
+  getSessionById: (id: string) => apiClient.get(`/interview/${id}`),
+  submitAnswer: (id: string, data: any) => apiClient.post(`/interview/${id}/answer`, data),
+  completeSession: (id: string) => apiClient.post(`/interview/${id}/complete`),
+  getStats: () => apiClient.get('/interview/stats'),
+  getTips: (params?: any) => apiClient.get('/interview/tips', { params }),
+  transcribe: (data: FormData) =>
+    apiClient.post('/interview/transcribe', data, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+};
+
+// Activity API
+export const activityApi = {
+  getRecent: (limit: number = 10) => apiClient.get(`/activity?limit=${limit}`),
+};
+
+// LinkedIn API
+export const linkedinApi = {
+  analyze: (data: any) => apiClient.post('/linkedin/analyze', data),
+  getHeadlineSuggestions: (data: any) => apiClient.post('/linkedin/suggestions/headline', data),
+  getSummarySuggestions: (data: any) => apiClient.post('/linkedin/suggestions/summary', data),
+  optimizeSkills: (data: any) => apiClient.post('/linkedin/optimize/skills', data),
+};
+
+// Roadmap API
+export const roadmapApi = {
+  createRoadmap: (data: any) => apiClient.post('/roadmap', data),
+  getRoadmaps: () => apiClient.get('/roadmap'),
+  getRoadmapById: (id: string) => apiClient.get(`/roadmap/${id}`),
+  completeMilestone: (id: string, milestoneId: string) => apiClient.post(`/roadmap/${id}/milestones/${milestoneId}/complete`),
+  deleteRoadmap: (id: string) => apiClient.delete(`/roadmap/${id}`),
+};
+
+// Job Match API
+export const jobMatchApi = {
+  createMatch: (data: any) => apiClient.post('/jobs', data),
+  getMatches: (params?: any) => apiClient.get('/jobs', { params }),
+  getMatchById: (id: string) => apiClient.get(`/jobs/${id}`),
+  updateStatus: (id: string, data: any) => apiClient.put(`/jobs/${id}/status`, data),
+  getStats: () => apiClient.get('/jobs/stats'),
+  search: (params?: any) => apiClient.get('/jobs/search', { params }),
+  findJobs: (data: any) => apiClient.post('/jobs/find', data),
+};
+
+// Subscription API
+export const subscriptionApi = {
+  getPlans: () => apiClient.get('/subscription/plans'),
+  getSubscription: () => apiClient.get('/subscription'),
+  mockUpgrade: (plan: 'pro' | 'enterprise' = 'pro') =>
+    apiClient.post('/subscription/mock-upgrade', { plan }),
+  checkAccess: (feature: string) =>
+    apiClient.get(`/subscription/features/${feature}`),
+  getBillingHistory: () => apiClient.get('/subscription/billing/history'),
+  createCheckoutSession: (plan: 'pro' | 'enterprise', billingCycle: 'monthly' | 'yearly' = 'monthly') =>
+    apiClient.post('/subscription/checkout', { plan, billingCycle }),
+  cancelSubscription: (reason?: string, feedback?: string) =>
+    apiClient.post('/subscription/cancel', { reason, feedback }),
+  earnCredit: () => apiClient.post('/subscription/earn-credit'),
+  getCredits: () => apiClient.get('/subscription/credits'),
 };
 
 export default api;

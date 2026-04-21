@@ -4,3 +4,8 @@ export { Progress } from './progress';
 export { Badge } from './badge';
 export { Skeleton, SkeletonCard, SkeletonStats, SkeletonTable } from './skeleton';
 export { Toaster } from './toaster';
+export { Input } from './input';
+export { Label } from './label';
+export { Select, SelectGroup, SelectValue, SelectTrigger, SelectContent, SelectLabel, SelectItem, SelectSeparator } from './select';
+export { Tabs, TabsList, TabsTrigger, TabsContent } from './tabs';
+export { CreditWidget, CreditGateModal } from './CreditWidget';

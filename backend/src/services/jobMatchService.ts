@@ -1,6 +1,7 @@
 import { JobMatch, IJobMatch } from '../models/JobMatch';
 import { User } from '../models/User';
-import { GeminiService } from './geminiService';
+import { GroqService } from './groqService';
+import { JobMatchAnalysis } from '../types/ai';
 import { logger } from '../utils/logger';
 import { ApiError } from '../utils/apiResponse';
 
@@ -47,8 +48,12 @@ export class JobMatchService {
         throw ApiError.notFound('User not found');
       }
 
-      // Analyze job match with Gemini
-      const analysis = await GeminiService.analyzeJobMatch(
+      if (!user.canUseJobMatch()) {
+        throw ApiError.forbidden('Job match limit reached. Upgrade to Pro for unlimited job matches.');
+      }
+
+      // Analyze job match with Groq
+      const analysis = await GroqService.analyzeJobMatch(
         user.skills || [],
         user.yearsOfExperience,
         user.education?.map(e => e.degree) || [],
@@ -76,7 +81,28 @@ export class JobMatchService {
 
       await jobMatch.save();
 
+      // Increment usage for free users
+      if (!user.hasProAccess()) {
+        user.usage.jobMatchCount += 1;
+        await user.save();
+      }
+
       logger.info(`Job match created for user ${userId}. Score: ${analysis.matchScore}`);
+
+      // Log Activity
+      try {
+        const { ActivityService } = await import('./activityService');
+        await ActivityService.logActivity(
+          userId,
+          'job',
+          'New job match found',
+          `${jobData.jobTitle} at ${jobData.company}`,
+          `/jobs/${jobMatch._id}`,
+          { score: analysis.matchScore }
+        );
+      } catch (actError) {
+        logger.warn('Failed to log job activity:', actError);
+      }
 
       return jobMatch;
     } catch (error) {
@@ -346,6 +372,7 @@ export class JobMatchService {
         try {
           await this.createJobMatch(userId, {
             ...jobData,
+            preferredSkills: [],
             location: { remote: false, hybrid: false },
             experienceRequired: { min: 0, max: 10 },
             jobType: 'full_time',
@@ -361,6 +388,35 @@ export class JobMatchService {
       return { created, failed };
     } catch (error) {
       logger.error('Bulk create job matches error:', error);
+      throw error;
+    }
+  }
+
+  // Find jobs based on criteria using AI
+  static async findJobs(
+    userId: string,
+    criteria: {
+      role: string;
+      location?: string;
+      jobType?: string;
+      salaryMin?: number;
+    }
+  ): Promise<any[]> {
+    try {
+      const user = await User.findById(userId);
+      if (!user) {
+        throw ApiError.notFound('User not found');
+      }
+
+      // Generate jobs using AI
+      const jobs = await GroqService.findJobs({
+        ...criteria,
+        skills: user.skills,
+      });
+
+      return jobs;
+    } catch (error) {
+      logger.error('Find jobs error:', error);
       throw error;
     }
   }

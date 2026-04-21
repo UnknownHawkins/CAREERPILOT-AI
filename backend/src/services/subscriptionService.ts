@@ -153,6 +153,15 @@ export class SubscriptionService {
       });
 
       if (!subscription) {
+        // Fallback for users who upgraded via Mock Upgrade
+        const user = await User.findById(userId);
+        if (user && user.subscription && user.subscription.status === 'active') {
+          user.role = 'free';
+          user.subscription.status = 'cancelled';
+          await user.save();
+          return user.subscription as any;
+        }
+
         throw ApiError.notFound('No active subscription found');
       }
 
@@ -170,7 +179,7 @@ export class SubscriptionService {
       };
       await subscription.save();
 
-      // Update user
+      // Update user immediately for clarity in hackathon/demo
       const user = await User.findById(userId);
       if (user) {
         user.role = 'free';
@@ -279,7 +288,11 @@ export class SubscriptionService {
         };
 
         const user = await User.findById(userId);
-        const used = user?.usage?.[`${featureName}Count`] || 0;
+        let used = 0;
+        if (user && user.usage) {
+          const val = user.usage[`${featureName}Count` as keyof typeof user.usage];
+          if (typeof val === 'number') used = val;
+        }
         const limit = freeLimits[featureName] || 0;
 
         return {
@@ -373,9 +386,20 @@ export class SubscriptionService {
         }
 
         case 'customer.subscription.deleted': {
-          const subscription = event.data.object;
-          // Handle subscription cancellation
-          logger.info(`Subscription cancelled: ${subscription.id}`);
+          const stripeSubscription = event.data.object;
+          const sub = await Subscription.findOne({ 'paymentDetails.stripeSubscriptionId': stripeSubscription.id });
+          if (sub) {
+            sub.status = 'expired';
+            await sub.save();
+            
+            const user = await User.findById(sub.userId);
+            if (user) {
+              user.role = 'free';
+              if (user.subscription) user.subscription.status = 'expired';
+              await user.save();
+            }
+          }
+          logger.info(`Subscription expired and removed: ${stripeSubscription.id}`);
           break;
         }
 
