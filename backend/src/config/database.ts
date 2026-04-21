@@ -9,6 +9,7 @@ export const connectDB = async (): Promise<void> => {
       maxPoolSize: 10,
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
+      family: 4, // Force IPv4 to prevent SRV lookup failures on Node>=17
     };
 
     await mongoose.connect(mongoURI, options);

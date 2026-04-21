@@ -1,6 +1,6 @@
 import { ResumeAnalysis, IResumeAnalysis } from '../models/Resume';
 import { User } from '../models/User';
-import { GeminiService, ResumeAnalysisResult } from './geminiService';
+import { GroqService, ResumeAnalysisResult } from './groqService';
 import { parseResume, cleanExtractedText } from '../utils/fileParser';
 import { uploadFileToFirebase } from '../config/firebase';
 import { logger } from '../utils/logger';
@@ -13,6 +13,7 @@ export class ResumeService {
     fileBuffer: Buffer,
     originalFileName: string,
     fileType: string,
+    mimetype: string,
     targetRole?: string,
     industry?: string
   ): Promise<IResumeAnalysis> {
@@ -31,23 +32,34 @@ export class ResumeService {
       const extractedText = await parseResume(fileBuffer, fileType);
       const cleanedText = cleanExtractedText(extractedText);
 
-      if (cleanedText.length < 100) {
+      // Skip length check for images (vision analysis handles it) and emails (might be short)
+      if (fileType !== 'image' && fileType !== 'email' && cleanedText.length < 100) {
         throw ApiError.badRequest('Could not extract sufficient text from the resume. Please check the file.');
       }
 
-      // Upload file to Firebase
-      const fileUrl = await uploadFileToFirebase(
-        fileBuffer,
-        originalFileName,
-        fileType === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'resumes'
-      );
+      let fileUrl = '';
+      try {
+        fileUrl = await uploadFileToFirebase(
+          fileBuffer,
+          originalFileName,
+          fileType === 'pdf' ? 'application/pdf' : 
+          fileType === 'docx' ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' :
+          fileType === 'image' ? (mimetype || 'image/jpeg') : 'text/plain',
+          'resumes'
+        );
+      } catch (err: any) {
+        logger.warn('Firebase upload failed, storing file only in MongoDB:', err.message);
+      }
 
-      // Analyze with Gemini
-      const analysisResult = await GeminiService.analyzeResume(
-        cleanedText,
+      // Analyze with Groq
+      const analysisResult = await GroqService.analyzeResume(
+        fileType === 'image' ? 'Analyze this resume image.' : cleanedText,
         targetRole,
-        industry
+        industry,
+        fileType === 'image' ? {
+          buffer: fileBuffer,
+          mimeType: mimetype
+        } : undefined
       );
 
       // Save analysis to database
@@ -55,8 +67,9 @@ export class ResumeService {
         userId,
         originalFileName,
         fileUrl,
-        fileType: fileType as 'pdf' | 'docx' | 'doc',
-        extractedText: cleanedText,
+        fileData: fileBuffer,
+        fileType: fileType as any,
+        extractedText: fileType === 'image' ? 'IMAGE_CONTENT' : cleanedText,
         atsScore: analysisResult.atsScore,
         analysis: {
           overallFeedback: analysisResult.overallFeedback,
@@ -68,6 +81,8 @@ export class ResumeService {
         },
         skillGapAnalysis: analysisResult.skillGapAnalysis,
         improvementSuggestions: analysisResult.improvementSuggestions,
+        jobSuggestions: analysisResult.jobSuggestions,
+        matchingRoles: analysisResult.matchingRoles,
       });
 
       await resumeAnalysis.save();
@@ -77,9 +92,44 @@ export class ResumeService {
       await user.save();
 
       logger.info(`Resume analyzed for user ${userId}. ATS Score: ${analysisResult.atsScore}`);
+      
+      // Log Activity
+      try {
+        const { ActivityService } = await import('./activityService');
+        await ActivityService.logActivity(
+          userId,
+          'resume',
+          'Resume analyzed',
+          `ATS Score: ${analysisResult.atsScore}%`,
+          `/resume/${resumeAnalysis._id}`,
+          { score: analysisResult.atsScore }
+        );
+      } catch (actError) {
+        logger.warn('Failed to log resume activity:', actError);
+      }
+
+      // Dual write to Firebase Firestore
+      try {
+        const { getFirestore } = await import('../config/firebase');
+        const db = getFirestore();
+        const firestoreData = resumeAnalysis.toObject();
+        delete firestoreData.fileData; // Do not sync large binary buffer over 1MB Firestore limit, fileUrl exists as backup!
+        await db.collection('analyses').doc(resumeAnalysis._id.toString()).set({
+          ...firestoreData,
+          userId: userId.toString() // Ensure userId is string natively in Firestore
+        });
+        logger.info(`Resume analysis ${resumeAnalysis._id} mirrored to Firebase Firestore.`);
+      } catch (fbError: any) {
+        logger.warn(`Failed to mirror analysis ${resumeAnalysis._id} to Firebase: ${fbError.message}`);
+      }
 
       return resumeAnalysis;
-    } catch (error) {
+    } catch (error: any) {
+      if (error.name === 'ValidationError') {
+        const messages = Object.values(error.errors).map((err: any) => err.message);
+        logger.error(`Resume validation failed: ${messages.join(', ')}`);
+        throw ApiError.badRequest(`Validation failed: ${messages.join(', ')}`);
+      }
       logger.error('Resume upload and analysis error:', error);
       throw error;
     }
@@ -92,17 +142,47 @@ export class ResumeService {
     limit: number = 10
   ): Promise<{ analyses: IResumeAnalysis[]; total: number }> {
     try {
+      let analyses: IResumeAnalysis[] = [];
+      let total: number = 0;
       const skip = (page - 1) * limit;
 
-      const [analyses, total] = await Promise.all([
-        ResumeAnalysis.find({ userId })
-          .sort({ createdAt: -1 })
-          .skip(skip)
-          .limit(limit)
-          .select('-extractedText')
-          .exec(),
-        ResumeAnalysis.countDocuments({ userId }),
-      ]);
+      try {
+        [analyses, total] = await Promise.all([
+          ResumeAnalysis.find({ userId })
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .select('-extractedText -fileData')
+            .exec(),
+          ResumeAnalysis.countDocuments({ userId }),
+        ]);
+      } catch (mongoError: any) {
+        logger.warn(`MongoDB failed for getUserAnalyses: ${mongoError.message}, attempting Firebase fallback`);
+        // Fallback to Firebase
+        try {
+          const { getFirestore } = await import('../config/firebase');
+          const db = getFirestore();
+          const snapshot = await db.collection('analyses')
+            .where('userId', '==', userId.toString())
+            .orderBy('createdAt', 'desc')
+            .offset(skip)
+            .limit(limit)
+            .get();
+
+          const countSnapshot = await db.collection('analyses').where('userId', '==', userId.toString()).count().get();
+          total = countSnapshot.data().count;
+
+          analyses = snapshot.docs.map(doc => {
+             const fakeDoc = new ResumeAnalysis(doc.data());
+             fakeDoc._id = doc.id as any;
+             return fakeDoc;
+          });
+          logger.info(`Successfully fetched ${analyses.length} analyses from Firebase fallback.`);
+        } catch (fbError: any) {
+           logger.error(`Firebase fallback failed for getUserAnalyses: ${fbError.message}`);
+           throw new Error('Databases are completely unavailable');
+        }
+      }
 
       return { analyses, total };
     } catch (error) {
@@ -117,10 +197,30 @@ export class ResumeService {
     userId: string
   ): Promise<IResumeAnalysis> {
     try {
-      const analysis = await ResumeAnalysis.findOne({
-        _id: analysisId,
-        userId,
-      });
+      let analysis: any = null;
+      try {
+        analysis = await ResumeAnalysis.findOne({
+          _id: analysisId,
+          userId,
+        });
+      } catch (mongoError: any) {
+        logger.warn(`MongoDB lookup failed for getAnalysisById, fallback Firebase: ${mongoError.message}`);
+      }
+
+      if (!analysis) {
+        try {
+          const { getFirestore } = await import('../config/firebase');
+          const db = getFirestore();
+          const doc = await db.collection('analyses').doc(analysisId).get();
+          if (doc.exists && doc.data()?.userId === userId.toString()) {
+            analysis = new ResumeAnalysis(doc.data());
+            analysis._id = doc.id as any;
+            logger.info(`Successfully fetched analysis ${analysisId} from Firebase fallback.`);
+          }
+        } catch (fbError: any) {
+           logger.warn(`Firebase fallback failed for getAnalysisById: ${fbError.message}`);
+        }
+      }
 
       if (!analysis) {
         throw ApiError.notFound('Analysis not found');
@@ -149,11 +249,13 @@ export class ResumeService {
       }
 
       // Delete file from Firebase
-      try {
-        const { deleteFileFromFirebase } = await import('../config/firebase');
-        await deleteFileFromFirebase(analysis.fileUrl);
-      } catch (firebaseError) {
-        logger.warn('Failed to delete file from Firebase:', firebaseError);
+      if (analysis.fileUrl) {
+        try {
+          const { deleteFileFromFirebase } = await import('../config/firebase');
+          await deleteFileFromFirebase(analysis.fileUrl);
+        } catch (firebaseError) {
+          logger.warn('Failed to delete file from Firebase:', firebaseError);
+        }
       }
 
       logger.info(`Analysis ${analysisId} deleted for user ${userId}`);
@@ -226,12 +328,12 @@ export class ResumeService {
         throw ApiError.notFound('User not found');
       }
 
-      if (!user.hasProAccess() && user.usage.resumeAnalysisCount >= 3) {
-        throw ApiError.forbidden('Free tier limit reached. Upgrade to Pro for more analyses.');
+      if (!user.canUseResumeAnalysis()) {
+        throw ApiError.forbidden('Resume analysis limit reached. Upgrade to Pro for unlimited analyses.');
       }
 
       // Reanalyze with new parameters
-      const analysisResult = await GeminiService.analyzeResume(
+      const analysisResult = await GroqService.analyzeResume(
         existingAnalysis.extractedText,
         targetRole,
         industry
@@ -249,6 +351,8 @@ export class ResumeService {
       };
       existingAnalysis.skillGapAnalysis = analysisResult.skillGapAnalysis;
       existingAnalysis.improvementSuggestions = analysisResult.improvementSuggestions;
+      existingAnalysis.jobSuggestions = analysisResult.jobSuggestions;
+      existingAnalysis.matchingRoles = analysisResult.matchingRoles;
 
       await existingAnalysis.save();
 

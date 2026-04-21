@@ -1,6 +1,6 @@
 import { CareerRoadmap, ICareerRoadmap } from '../models/CareerRoadmap';
 import { User } from '../models/User';
-import { GeminiService } from './geminiService';
+import { GroqService, CareerRoadmap as AICareerRoadmap } from './groqService';
 import { logger } from '../utils/logger';
 import { ApiError } from '../utils/apiResponse';
 import { v4 as uuidv4 } from 'uuid';
@@ -33,12 +33,12 @@ export class RoadmapService {
         );
       }
 
-      // Generate roadmap with Gemini
+      // Generate roadmap with Groq
       const currentRole = user.targetRole || 'Professional';
       const currentLevel = this.mapExperienceToLevel(user.yearsOfExperience);
       const currentSkills = user.skills || [];
 
-      const roadmapData = await GeminiService.generateCareerRoadmap(
+      const roadmapData = await GroqService.generateCareerRoadmap(
         currentRole,
         targetRole,
         currentLevel,
@@ -49,7 +49,7 @@ export class RoadmapService {
       );
 
       // Add IDs to milestones
-      const milestonesWithIds = roadmapData.milestones.map(m => ({
+      const milestonesWithIds = roadmapData.milestones.map((m: any) => ({
         ...m,
         id: m.id || uuidv4(),
         completed: false,

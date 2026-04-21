@@ -1,4 +1,4 @@
-export { GeminiService } from './geminiService';
+export { GroqService } from './groqService';
 export { ResumeService } from './resumeService';
 export { InterviewService } from './interviewService';
 export { LinkedInService } from './linkedinService';

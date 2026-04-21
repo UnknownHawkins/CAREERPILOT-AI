@@ -33,6 +33,10 @@ export const parseResume = async (
       case 'docx':
       case 'doc':
         return await parseDOCX(buffer);
+      case 'email':
+        return buffer.toString('utf-8');
+      case 'image':
+        return 'IMAGE_CONTENT'; // Text extraction for images will be handled by Groq Vision directly
       default:
         throw new Error(`Unsupported file type: ${fileType}`);
     }

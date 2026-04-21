@@ -3,14 +3,17 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import compression from 'compression';
+import path from 'path';
 import dotenv from 'dotenv';
 
-// Load environment variables
-dotenv.config();
+// Load environment variables FIRST — before any other module imports
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
+
 
 import { connectDB } from './config/database';
 import { initializeFirebase } from './config/firebase';
-import { initializeGemini } from './config/gemini';
+
+import { initializeGroq } from './config/groq';
 import { initializeStripe } from './config/stripe';
 import routes from './routes';
 import { apiRateLimiter } from './middleware/rateLimiter';
@@ -37,7 +40,7 @@ app.use(helmet({
 
 // CORS configuration
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  origin: process.env.CLIENT_URL ? [process.env.CLIENT_URL] : ['http://localhost:3000', 'http://localhost:3001'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -72,31 +75,32 @@ const startServer = async () => {
   try {
     // Connect to database
     await connectDB();
-    
+
     // Initialize Firebase
     initializeFirebase();
-    
-    // Initialize Gemini AI
-    initializeGemini();
-    
+
+
+    // Initialize Groq AI
+    initializeGroq();
+
     // Initialize Stripe (optional)
     try {
       initializeStripe();
     } catch (error) {
       console.warn('Stripe initialization failed. Payment features will be disabled.');
     }
-    
+
     // Start server
-    app.listen(PORT, () => {
+    app.listen(Number(PORT), '0.0.0.0', () => {
       console.log(`
 ╔════════════════════════════════════════════════════════════╗
 ║                                                            ║
-║   🚀 CareerPilot AI Backend Server                         ║
+║   🚀CareerPilot AI Backend Server                          ║
 ║                                                            ║
 ║   Status: Running                                          ║
-║   Port: ${PORT}                                              ║
-║   Environment: ${process.env.NODE_ENV || 'development'}                          ║
-║   API URL: http://localhost:${PORT}/api/v1                    ║
+║   Port: ${PORT}                                            ║
+║   Environment: ${process.env.NODE_ENV || 'development'}    ║
+║   API URL: http://0.0.0.0:${PORT}/api/v1                 ║
 ║                                                            ║
 ╚════════════════════════════════════════════════════════════╝
       `);
@@ -113,10 +117,10 @@ process.on('uncaughtException', (error) => {
   process.exit(1);
 });
 
-// Handle unhandled promise rejections
+// Handle unhandled promise rejections — log but don't crash the server
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  process.exit(1);
+  // Do NOT call process.exit(1) — let the server keep running
 });
 
 // Graceful shutdown

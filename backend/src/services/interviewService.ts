@@ -1,6 +1,6 @@
 import { InterviewSession, IInterviewSession } from '../models/InterviewSession';
 import { User } from '../models/User';
-import { GeminiService, InterviewQuestion, InterviewFeedback } from './geminiService';
+import { GroqService, InterviewQuestion, InterviewFeedback } from './groqService';
 import { logger } from '../utils/logger';
 import { ApiError } from '../utils/apiResponse';
 import { v4 as uuidv4 } from 'uuid';
@@ -36,7 +36,7 @@ export class InterviewService {
       // Generate questions based on user tier
       const questionCount = isPro ? 10 : 3;
       
-      const questions = await GeminiService.generateInterviewQuestions(
+      const questions = await GroqService.generateInterviewQuestions(
         jobRole,
         experienceLevel,
         industry,
@@ -158,8 +158,8 @@ export class InterviewService {
         throw ApiError.badRequest('Question already answered');
       }
 
-      // Analyze answer with Gemini
-      const feedback = await GeminiService.analyzeInterviewAnswer(
+      // Analyze answer with Groq
+      const feedback = await GroqService.analyzeInterviewAnswer(
         question.question,
         answer,
         question.expectedAnswerPoints,
@@ -222,7 +222,7 @@ export class InterviewService {
         feedback: q.aiFeedback as InterviewFeedback,
       }));
 
-      const overallFeedback = await GeminiService.generateOverallInterviewFeedback(
+      const overallFeedback = await GroqService.generateOverallInterviewFeedback(
         questionsForFeedback
       );
 
@@ -240,6 +240,21 @@ export class InterviewService {
       await session.save();
 
       logger.info(`Interview session ${sessionId} completed. Overall score: ${overallScore}`);
+
+      // Log Activity
+      try {
+        const { ActivityService } = await import('./activityService');
+        await ActivityService.logActivity(
+          userId,
+          'interview',
+          'Mock interview completed',
+          `Score: ${overallScore}%`,
+          `/interview/${session._id}`,
+          { score: overallScore }
+        );
+      } catch (actError) {
+        logger.warn('Failed to log interview activity:', actError);
+      }
 
       return session;
     } catch (error) {
